@@ -9,33 +9,30 @@ import sklearn.metrics
 import time
 import pandas as pd
 import os
-from save_kernels import create_kern, compute_big_K
+from save_kernels import create_kern, compute_big_K, mnist_1hot_all
 
 from absl import app as absl_app
 from absl import flags
 
-def mnist_1hot_all():
-    from tensorflow.examples.tutorials.mnist import input_data
-    old_v = tf.logging.get_verbosity()
-    tf.logging.set_verbosity(tf.logging.ERROR)
-    d = input_data.read_data_sets("MNIST_data/", one_hot=True)
-    r = tuple(a.astype(settings.float_type) for a in [
-        d.train.images, d.train.labels,
-        d.validation.images, d.validation.labels,
-        d.test.images, d.test.labels])
-    tf.logging.set_verbosity(old_v)
-    return r
 
-
-def cut_training(N, Kxx, Kxvx, Kv_diag, Kxtx, Kt_diag, X, Y, Xv, Yv, Xt, Yt):
-    return (Kxx[:N, :N],
-            np.concatenate([Kxx[N:, :N], Kxvx[:, :N]], axis=0),
-            np.concatenate([np.diag(Kxx[N:, N:]), Kv_diag], axis=0),
-            Kxtx[:, :N],
+def cut_training(N_train, N_vali, Kxx, Kxvx, Kv_diag, Kxtx, Kt_diag, X, Y, Xv, Yv, Xt, Yt):
+    """
+    If you computed a kernel matrix larger than the size of the training set
+    you want to use, this is useful!
+    For example: the default TensorFlow MNIST training set is 55k examples, but
+    the paper "Deep Neural Networks as Gaussian Processes" by Jaehon Lee et al.
+    (https://arxiv.org/abs/1711.00165) used only 50k, and we had to make a fair
+    comparison.
+    """
+    return (Kxx[:N_train, :N_train],
+            np.concatenate([Kxx[N_train:, :N_train], Kxvx[:, :N_train]], axis=0)[:N_vali, :],
+            (None if Kv_diag is None else
+             np.concatenate([np.diag(Kxx[N_train:, N_train:]), Kv_diag], axis=0)[:N_vali]),
+            Kxtx[:, :N_train],
             Kt_diag,
-            X[:N], Y[:N],
-            np.concatenate([X[N:], Xv], axis=0),
-            np.concatenate([Y[N:], Yv], axis=0),
+            X[:N_train], Y[:N_train],
+            np.concatenate([X[N_train:], Xv], axis=0)[:N_vali, :],
+            np.concatenate([Y[N_train:], Yv], axis=0)[:N_vali, :],
             Xt, Yt)
 
 
@@ -68,10 +65,11 @@ def main(_):
     #     sys.exit(1)
 
     print("Loading data and kernels")
-    Kxx, Kxvx, Kv_diag, Kxtx, Kt_diag, X, Y, Xv, Yv, Xt, Yt = cut_training(
-        FLAGS.N, np.load(gram_file),
-        np.load(Kxvx_file), np.load(Kv_diag_file),
-        np.load(Kxtx_file), np.load(Kt_diag_file),
+    Kxx, Kxvx, _, Kxtx, _, X, Y, Xv, Yv, Xt, Yt = cut_training(
+        FLAGS.N_train, FLAGS.N_vali,
+        np.load(gram_file),
+        np.load(Kxvx_file), None,
+        np.load(Kxtx_file), None,
         *mnist_1hot_all())
 
     # center labels
@@ -100,9 +98,12 @@ def main(_):
     pd.DataFrame(data=params, index=pd.Index([0])).to_csv(csv_file)
 
 if __name__ == '__main__':
-    flags.DEFINE_integer('seed', None, 'random seed')
-    flags.DEFINE_integer('n_gpus', 1, 'n of gpus')
-    flags.DEFINE_integer('N', 50000, 'number of data points')
-    flags.DEFINE_string('path', "./precomputed_kernels", "the path to the precomputed kernel matrices")
-    flags.DEFINE_string('csv_dir', 'dfs', 'directory to save csvs, under gram matrix path')
+    f = flags
+    f.DEFINE_integer('seed', None, 'random seed')
+    f.DEFINE_integer('N_train', 50000, 'number of training data points')
+    f.DEFINE_integer('N_vali', 10000, 'number of validation data points')
+    f.DEFINE_string('path', None,
+                    "the path to the precomputed kernel matrices")
+    f.DEFINE_string('csv_dir', 'dfs',
+                    "directory to save CSVs with results, under `FLAGS.path`")
     absl_app.run(main)

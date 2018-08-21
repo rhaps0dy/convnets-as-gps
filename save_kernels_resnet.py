@@ -18,10 +18,11 @@ def main(_):
     FLAGS = tf.app.flags.FLAGS
     np.random.seed(FLAGS.seed)
     tf.set_random_seed(FLAGS.seed)
-
     DEPTH = FLAGS.depth
-
     path = FLAGS.path
+    if path is None:
+        raise ValueError("Please provide a value for `FLAGS.path`")
+
     def file_for(name, fmt):
         return os.path.join(path, "{}_{:02d}.{}".format(name, FLAGS.seed, fmt))
     params_file = file_for('params', 'pkl.gz')
@@ -31,9 +32,9 @@ def main(_):
     Kv_diag_file = file_for('Kv_diag', 'npy')
     Kt_diag_file = file_for('Kt_diag', 'npy')
 
+    # Copied from https://github.com/tensorflow/models/blob/d089975f/official/resnet/cifar10_main.py#L167-L170
     if DEPTH % 6 != 2:
         raise ValueError('DEPTH must be 6n + 2:', DEPTH)
-
     block_depth = (DEPTH - 2) // 6
 
     params = {'depth': DEPTH}
@@ -47,21 +48,28 @@ def main(_):
             kernel_size=3,
             conv_stride=1,
             recurse_kern=dkern.ExReLU(),
-            var_weight=1., #scipy.stats.truncnorm.std(a=-2, b=2, loc=0., scale=1.)**2,
+            var_weight=1.,  # scipy.stats.truncnorm.std(a=-2, b=2, loc=0., scale=1.)**2,
             var_bias=0.,
             data_format='NCHW',
         )
-    save_kernels(kern, FLAGS.n_gpus, gram_file, Kxvx_file, Kxtx_file,
-                 n_max=FLAGS.n_max, Kv_diag_file=Kv_diag_file,
-                 Kt_diag_file=Kt_diag_file)
+    save_kernels(kern, FLAGS.N_train, FLAGS.N_vali, FLAGS.n_gpus, gram_file,
+                 Kxvx_file, Kxtx_file, n_max=FLAGS.n_max,
+                 Kv_diag_file=Kv_diag_file, Kt_diag_file=Kt_diag_file)
 
 
 if __name__ == '__main__':
     f = tf.app.flags
-    f.DEFINE_integer('n_gpus', 1, 'Number of GPUs to use')
-    f.DEFINE_integer('n_blocks', 3, 'Number of blocks to use')
-    f.DEFINE_integer('seed', None, 'seed')
-    f.DEFINE_integer('depth', 32, 'depth of the resnet')
-    f.DEFINE_integer('n_max', 400, 'max number of examples to simultaneously compute the kernel of')
-    f.DEFINE_string('path', "/scratch/ag919/grams_resnet/", 'save path')
+    f.DEFINE_integer('n_gpus', 1, "Number of GPUs to use")
+    f.DEFINE_integer('n_blocks', 3, "Number of residual blocks to use")
+    f.DEFINE_integer('seed', 0, (
+        "random seed (no randomness in this program, use to save different "
+        "versions of the resnet kernel)"))
+    f.DEFINE_integer('depth', 32, (
+        "some parameter that is related with the depth of the ResNet. Read the "
+        "code to make sense of it, sorry :("))
+    f.DEFINE_integer('n_max', 400,
+        "max number of examples to simultaneously compute the kernel of")
+    f.DEFINE_string('path', None, "path to save kernel matrices to")
+    f.DEFINE_integer('N_train', 50000, 'number of training data points')
+    f.DEFINE_integer('N_vali', 10000, 'number of validation data points')
     tf.app.run()

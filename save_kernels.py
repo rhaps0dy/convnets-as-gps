@@ -8,15 +8,26 @@ from gpflow import settings
 import deep_ckern as dkern
 import tqdm
 import pickle_utils as pu
-from rectangles import mnist_1hot_all
 import sys
 import os
 import gpflow
 
 
+def mnist_1hot_all():
+    from tensorflow.examples.tutorials.mnist import input_data
+    old_v = tf.logging.get_verbosity()
+    tf.logging.set_verbosity(tf.logging.ERROR)
+    d = input_data.read_data_sets("MNIST_data/", one_hot=True)
+    r = tuple(a.astype(settings.float_type) for a in [
+        d.train.images, d.train.labels,
+        d.validation.images, d.validation.labels,
+        d.test.images, d.test.labels])
+    tf.logging.set_verbosity(old_v)
+    return r
+
+
 def create_kern(ps):
     if ps['seed'] == 1234:
-        print('good shit')
         return dkern.DeepKernel(
             [1, 28, 28],
             filter_sizes=[[5, 5], [2, 2], [5, 5], [2, 2]],
@@ -45,6 +56,11 @@ def create_kern(ps):
 
 
 def compute_big_Kdiag(sess, kern, n_max, X, n_gpus=1):
+    """
+    Compute Kdiag for a "big" data set `X`.
+    `X` fits in memory, but the tensors required to compute the whole diagonal
+    of the kernel matrix of `X` don't fit in GPU memory.
+    """
     N = X.shape[0]
     slices = list(slice(j, j+n_max) for j in range(0, N, n_max))
     K_ops = []
@@ -68,8 +84,10 @@ def compute_big_Kdiag(sess, kern, n_max, X, n_gpus=1):
     return out
 
 
-def compute_big_K(sess, kern, n_max, X, X2=None, n_gpus=1,
-                  use_Kdiag=False):
+def compute_big_K(sess, kern, n_max, X, X2=None, n_gpus=1):
+    """
+    Compute the kernel matrix between `X` and `X2`.
+    """
     N = X.shape[0]
     N2 = N if X2 is None else X2.shape[0]
 
@@ -124,9 +142,12 @@ def compute_big_K(sess, kern, n_max, X, X2=None, n_gpus=1,
     return out
 
 
-def save_kernels(kern, n_gpus, gram_file, Kxvx_file, Kxtx_file, n_max=400,
-                 Kv_diag_file=None, Kt_diag_file=None):
+def save_kernels(kern, N_train, N_vali, n_gpus, gram_file, Kxvx_file,
+                 Kxtx_file, n_max=400, Kv_diag_file=None, Kt_diag_file=None):
     X, _, Xv, _, Xt, _ = mnist_1hot_all()
+    Xv = np.concatenate([X[N_train:, :], Xv], axis=0)[:N_vali, :]
+    X = X[:N_train]
+
     sess = gpflow.get_default_session()
     if os.path.isfile(gram_file):
         print("Skipping Kxx")
@@ -168,39 +189,71 @@ def save_kernels(kern, n_gpus, gram_file, Kxvx_file, Kxtx_file, n_max=400,
             np.save(Kt_diag_file, Kt_diag, allow_pickle=False)
 
 
-if __name__ == '__main__':
-    seed = int(sys.argv[1])
-    np.random.seed(seed)
-    tf.set_random_seed(seed)
+def main(_):
+    FLAGS = tf.app.flags.FLAGS
+    np.random.seed(FLAGS.seed)
+    tf.set_random_seed(FLAGS.seed)
+    path = FLAGS.path
+    if path is None:
+        raise ValueError("Please provide a value for `FLAGS.path`")
 
-    path = "/scratch/ag919/grams/"
-    params_file = os.path.join(path, "params_{:02d}.pkl.gz".format(seed))
-    gram_file = os.path.join(path, "gram_{:02d}.npy".format(seed))
-    Kxvx_file = os.path.join(path, "Kxvx_{:02d}.npy".format(seed))
-    Kxtx_file = os.path.join(path, "Kxtx_{:02d}.npy".format(seed))
-    n_gpus = 6
+    def file_for(name, fmt):
+        return os.path.join(path, "{}_{:02d}.{}".format(name, FLAGS.seed, fmt))
+    params_file = file_for('params', 'pkl.gz')
+    gram_file = file_for('gram', 'npy')
+    Kxvx_file = file_for('Kxvx', 'npy')
+    Kxtx_file = file_for('Kxtx', 'npy')
+
+    # Replicate the parameters the experiments were ran with
+    if FLAGS.allow_skip:
+        LAYERS_MIN=4
+        LAYERS_SPAN=12
+        FILTER_SIZE_SPAN=4
+    else:
+        LAYERS_MIN=2
+        LAYERS_SPAN=7
+        FILTER_SIZE_SPAN=5
 
     if os.path.isfile(params_file):
         params = pu.load(params_file)
     else:
         params = dict(
-            seed=seed,
+            seed=FLAGS.seed,
             var_weight=np.random.rand() * 8 + 0.5,
             var_bias=np.random.rand() * 8 + 0.2,
-            n_layers=4 + int(np.random.rand()*12),
-            filter_sizes=3 + int(np.random.rand()*4),
+            n_layers=LAYERS_MIN + int(np.random.rand()*LAYERS_SPAN),
+            filter_sizes=3 + int(np.random.rand()*FILTER_SIZE_SPAN),
             strides=1 + int(np.random.rand()*3),
             padding=("VALID" if np.random.rand() > 0.5 else "SAME"),
             nlin=("ExReLU" if np.random.rand() > 0.5 else "ExErf"),
-            skip_freq=(int(np.random.rand()*2) + 1 if np.random.rand() > 0.5 else -1),
+            skip_freq=(int(np.random.rand()*2) + 1
+                       if ((np.random.rand() > 0.5 and FLAGS.allow_skip)
+                           or FLAGS.seed < 56)  # Before that, skip_freq always positive
+                       else -1),
         )
         if params['skip_freq'] > 0:
             params['padding'] = 'SAME'
             params['strides'] = 1
 
-    print("Params:", params)
+    print("Params:", sorted(list(params.items())))
     pu.dump(params, params_file)
     with tf.device("cpu:0"):
         kern = create_kern(params)
 
-    save_kernels(kern, n_gpus, gram_file, Kxvx_file, Kxtx_file)
+    save_kernels(kern, FLAGS.N_train, FLAGS.N_vali, FLAGS.n_gpus, gram_file,
+                 Kxvx_file, Kxtx_file, n_max=FLAGS.n_max)
+
+
+if __name__ == '__main__':
+    f = tf.app.flags
+    f.DEFINE_integer('n_gpus', 1, "Number of GPUs to use")
+    f.DEFINE_boolean('allow_skip', False, "Whether to use skip connections in the random draw")
+    f.DEFINE_integer('seed', 0, (
+        "random seed (no randomness in this program, use to save different "
+        "versions of the resnet kernel)"))
+    f.DEFINE_integer('n_max', 400,
+        "max number of examples to simultaneously compute the kernel of")
+    f.DEFINE_integer('N_train', 50000, 'number of training data points')
+    f.DEFINE_integer('N_vali', 10000, 'number of validation data points')
+    f.DEFINE_string('path', None, "path to save kernel matrices to")
+    tf.app.run()

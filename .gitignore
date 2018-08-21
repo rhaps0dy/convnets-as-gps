@@ -106,3 +106,5 @@ venv.bak/
 # Latex
 *.fls
 *.fdb_latexmk
+
+MNIST_data

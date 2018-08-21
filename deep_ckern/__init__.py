@@ -10,7 +10,11 @@ from .resnet import ResnetKernel
 
 
 class DeepKernel(gpflow.kernels.Kernel):
-    "General deep kernel for n-dimensional convolutional networks"
+    """
+    General deep kernel for n-dimensional convolutional networks
+    Should be superseded by dkern.DeepKernelTesting, but that doesn't
+    necessarily work yet.
+    """
     def __init__(self,
                  input_shape: List[int],
                  filter_sizes: List[List[int]],
@@ -86,11 +90,11 @@ class DeepKernel(gpflow.kernels.Kernel):
         for i in range(self.n_layers):
             # Do the convolution for all the co/variances at once
             var_z = tf.concat(var_z_list, axis=0)
-            if ((isinstance(self.skip_freq, list) and i in self.skip_freq) or (
-                    self.skip_freq > 0 and i % self.skip_freq == 0)):
+            if (i > 0 and ((isinstance(self.skip_freq, list) and i in self.skip_freq) or
+                           (self.skip_freq > 0 and i % self.skip_freq == 0))):
                 var_z = var_z + var_z_previous
                 var_z_previous = var_z
-            if i == 0:
+            elif i == 0:
                 # initialize var_z_previous
                 var_z_previous = var_z
             var_a_all = self.lin_step(i, var_z)
