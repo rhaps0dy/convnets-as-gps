@@ -31,7 +31,7 @@ def create_kern(ps):
         return dkern.DeepKernel(
             [1, 28, 28],
             filter_sizes=[[5, 5], [2, 2], [5, 5], [2, 2]],
-            recurse_kern=dkern.ExReLU(),
+            recurse_kern=dkern.ExReLU(multiply_by_sqrt2=True),
             var_weight=1.,
             var_bias=1.,
             padding=["VALID", "SAME", "VALID", "SAME"],
@@ -42,10 +42,14 @@ def create_kern(ps):
 
     if 'skip_freq' not in ps:
         ps['skip_freq'] = -1
+    if ps['nlin'] == 'ExReLU':
+        recurse_kern = dkern.ExReLU(multiply_by_sqrt2=True)
+    else:
+        recurse_kern = dkern.ExErf()
     return dkern.DeepKernel(
         [1, 28, 28],
         filter_sizes=[[ps['filter_sizes'], ps['filter_sizes']]] * ps['n_layers'],
-        recurse_kern=getattr(dkern, ps['nlin'])(),
+        recurse_kern=recurse_kern,
         var_weight=ps['var_weight'],
         var_bias=ps['var_bias'],
         padding=ps['padding'],

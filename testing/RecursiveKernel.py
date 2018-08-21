@@ -9,6 +9,7 @@ from tensorflow.python.framework import ops
 #from IPython import embed
 
 import gpflow
+from gpflow import settings
 
 class DeepArcCosine(gpflow.kernels.Kernel):
 
@@ -25,8 +26,10 @@ class DeepArcCosine(gpflow.kernels.Kernel):
         self.num_steps = num_steps
         self.base_kernel = base_kernel
 
-        self.variance = gpflow.params.Parameter(variance, gpflow.transforms.positive)
-        self.bias_variance = gpflow.params.Parameter(bias_variance, gpflow.transforms.positive)
+        self.variance = gpflow.params.Parameter(
+            variance, gpflow.transforms.positive, dtype=settings.float_type)
+        self.bias_variance = gpflow.params.Parameter(
+            bias_variance, gpflow.transforms.positive, dtype=settings.float_type)
         
     @gpflow.decors.params_as_tensors
     def K(self, X, X2=None):
@@ -69,14 +72,14 @@ class DeepArcCosine(gpflow.kernels.Kernel):
         # Note: sin(acos(cos_theta)) = sqrt(1 - cos_theta**2)
         
         # norm(x) norm(y) / pi * J(theta)
-        cho_saul = norms_prod / np.pi * J
+        cho_saul = norms_prod / (2*np.pi) * J
         
-        return self.variance * cho_saul + self.bias_variance * tf.ones_like(cho_saul)
+        return self.variance * cho_saul + self.bias_variance
     
     @gpflow.decors.params_as_tensors
     def recurseKdiag(self, Kdiag):
-        # angle is zero, hence the diagonal stays the same (if scaled relu is used)        
-        return self.variance * Kdiag  + self.bias_variance * tf.ones_like(Kdiag)      
+        # angle is zero, hence the diagonal stays the same (if scaled relu is used)
+        return (self.variance/2) * Kdiag  + self.bias_variance
 
 def demo_deep_arcosine_kernel():
     X = np.atleast_2d( np.linspace( -0.5 , 0.5 , 4 ) ).T

@@ -27,8 +27,8 @@ class DeepKernelTest(gpflow.test_util.GPflowTestCase):
                 kb = ck.DeepKernel([D], [[]]*L, ck.ExReLU(),
                                    var_weight=1.2, var_bias=0.8,
                                    data_format="NC")
-                x = tf.constant(np.random.randn(12, D))
-                x2 = tf.constant(np.random.randn(15, D))
+                x = tf.constant(np.random.randn(12, D), dtype=settings.float_type)
+                x2 = tf.constant(np.random.randn(15, D), dtype=settings.float_type)
 
                 Kxx = [ka.K(x), kb.K(x)]
                 Kxx2 = [ka.K(x, x2), kb.K(x, x2)]

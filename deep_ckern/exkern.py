@@ -21,8 +21,9 @@ class ElementwiseExKern(Parameterized):
 
 
 class ExReLU(ElementwiseExKern):
-    def __init__(self, exponent=1, name=None):
+    def __init__(self, exponent=1, multiply_by_sqrt2=False, name=None):
         super(ExReLU, self).__init__(name=name)
+        self.multiply_by_sqrt2 = multiply_by_sqrt2
         if exponent in {0, 1}:
             self.exponent = exponent
         else:
@@ -45,19 +46,35 @@ class ExReLU(ElementwiseExKern):
 
         sin_theta = tf.sqrt(1. - cos_theta**2)
         J = sin_theta + (np.pi - theta) * cos_theta
-        return norms_prod / (2*np.pi) * J
+        if self.multiply_by_sqrt2:
+            div = np.pi
+        else:
+            div = 2*np.pi
+        return norms_prod / div * J
 
     def Kdiag(self, var):
-        if self.exponent == 0:
-            return tf.ones_like(var)/2
+        if self.multiply_by_sqrt2:
+            if self.exponent == 0:
+                return tf.ones_like(var)
+            else:
+                return var
         else:
-            return var/2
+            if self.exponent == 0:
+                return tf.ones_like(var)/2
+            else:
+                return var/2
 
     def nlin(self, x):
-        if self.exponent == 0:
-            return ((1 + tf.sign(x))/2)
-        elif self.exponent == 1:
-            return tf.nn.relu(x)
+        if self.multiply_by_sqrt2:
+            if self.exponent == 0:
+                return ((1 + tf.sign(x))/np.sqrt(2))
+            elif self.exponent == 1:
+                return tf.nn.relu(x) * np.sqrt(2)
+        else:
+            if self.exponent == 0:
+                return ((1 + tf.sign(x))/2)
+            elif self.exponent == 1:
+                return tf.nn.relu(x)
 
 
 class ExErf(ElementwiseExKern):
