@@ -1,9 +1,8 @@
 # Deep Convolutional Networks as shallow Gaussian Processes
+Note for reviewers: there is identifying information in the commit history.
+
 Code for "Deep Convolutional Networks as shallow Gaussian Processes"
-([arXiv](https://arxiv.org/abs/1808.05587)), by Adrià Garriga-Alonso, Laurence
-Aitchison and Carl Edward Rasmussen. It uses
-[GPflow](https://github.com/gpflow/gpflow) and
-[TensorFlow](http://www.tensorflow.org/).
+([OpenReview](https://openreview.net/forum?id=Syev-zKvKQ), by Anonymous Authors.
 
 ## Setup
 This package has been tested only with python 3.5 and 3.6.
@@ -50,13 +49,4 @@ All the experiments in the paper are run in a two-stage process:
   bit of development time.
 
 ## BibTex citation record
-```bibtex
-@article{garriga2018convnets,
-  author  = {{Garriga-Alonso}, Adri{\`a} and Aitchison, Laurence and Rasmussen, Carl Edward},
-  title   = {Deep Convolutional Networks as shallow {G}aussian Processes},
-  journal = {arXiv preprint arXiv:1808.05587},
-  year    = {2018},
-  month   = {aug},
-  url     = {https://arxiv.org/abs/1808.05587}
-}
-```
+Redacted. Please don't look in the commit history.
