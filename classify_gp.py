@@ -4,7 +4,6 @@ Using a precomputed kernel matrix, compute test scores of GP regression
 import sys
 import pickle_utils as pu
 import numpy as np
-import scipy
 import sklearn.metrics
 import time
 import pandas as pd
@@ -72,20 +71,16 @@ def main(_):
         np.load(Kxtx_file), None,
         *mnist_1hot_all())
 
-    # center labels
-    Kxx = Kxx.astype(np.float64)
-    Y[Y == 0.] = -1
-
+    Y[Y == 0.] = -1  # center labels
     print("Solving system")
     print("Size of Kxx, Y, Kxvx, Yv, Kxtx, Yt:", Kxx.shape, Y.shape, Kxvx.shape, Yv.shape, Kxtx.shape, Yt.shape)
-    K_inv_y = scipy.linalg.solve(Kxx, Y, overwrite_a=True, overwrite_b=False, check_finite=False, assume_a='pos')
-    #K_inv_y = Kxx @ Y
-    #print("Saving K_inv_y...")
-    #np.save(sys.argv[1].replace('gram_', 'K_inv_y_'), K_inv_y)
-    #ys.exit(0)
+    if FLAGS.jitter > 0.0:
+        Kxx.flat[::len(Kxx)+1] += Kxx.mean() * FLAGS.jitter  # Add jitter!
+    K_inv_y = scipy.linalg.solve(Kxx, Y, overwrite_a=True, overwrite_b=False,
+                                 check_finite=False, assume_a='pos', lower=False)
 
     def print_error(K_xt_x, Ytv, dit, key):
-        print("Running for", key)
+        print("Computing metric", key)
         Y_pred = K_xt_x @ K_inv_y
         t = sklearn.metrics.accuracy_score(
             np.argmax(Ytv, 1), np.argmax(Y_pred, 1))
@@ -106,4 +101,6 @@ if __name__ == '__main__':
                     "the path to the precomputed kernel matrices")
     f.DEFINE_string('csv_dir', 'dfs',
                     "directory to save CSVs with results, under `FLAGS.path`")
+    f.DEFINE_float('jitter', 0.0, "Add this to the diagonal of the kernel "
+                   "matrix to make it positive definite")
     absl_app.run(main)

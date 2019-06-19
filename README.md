@@ -1,8 +1,12 @@
 # Deep Convolutional Networks as shallow Gaussian Processes
-Note for reviewers: there is identifying information in the commit history.
-
 Code for "Deep Convolutional Networks as shallow Gaussian Processes"
-([OpenReview](https://openreview.net/forum?id=Syev-zKvKQ), by Anonymous Authors.
+([arXiv](https://arxiv.org/abs/1808.05587), [other material](https://agarri.ga/publication/convnets-as-gps/)), by [Adrià Garriga-Alonso](https://agarri.ga/), [Laurence
+Aitchison](http://www.gatsby.ucl.ac.uk/~laurence/) and [Carl Edward Rasmussen](http://mlg.eng.cam.ac.uk/carl/). It uses
+[GPflow](https://github.com/gpflow/gpflow) and
+[TensorFlow](http://www.tensorflow.org/).
+
+A PyTorch version of these same experiments can be found at
+[https://github.com/cambridge-mlg/cnn-gp](https://github.com/cambridge-mlg/cnn-gp).
 
 ## Setup
 This package has been tested only with python 3.5 and 3.6.
@@ -49,4 +53,14 @@ All the experiments in the paper are run in a two-stage process:
   bit of development time.
 
 ## BibTex citation record
-Redacted. Please don't look in the commit history.
+Note: the version in arXiv is slightly newer and contains information about
+which hyperparameters turned out to be the most effective for each architecture.
+
+```bibtex
+@inproceedings{aga2018cnngp,
+  author    = {{Garriga-Alonso}, Adri{\`a} and Aitchison, Laurence and Rasmussen, Carl Edward},
+  title     = {Deep Convolutional Networks as shallow {G}aussian Processes},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2019},
+  url       = {https://openreview.net/forum?id=Bklfsi0cKm}}
+```
